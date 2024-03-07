@@ -1098,6 +1098,20 @@ fn main() {
                                 (category, event_name)
                             }
                         };
+
+                        // HACK: Because we're not too confident about the merging yet,
+                        //       and because merging loses the text for the Start event,
+                        //       let's keep Start and Stop events as individual events as
+                        //       well for the moment.
+                        let name_extra = match timing {
+                            MarkerTiming::IntervalStart(_) => Some("_Start"),
+                            MarkerTiming::IntervalEnd(_) => Some("_Stop"),
+                            _ => None,
+                        };
+                        if let Some(name_extra) = name_extra {
+                            profile.add_marker(thread.handle, &(name.to_string() + name_extra), TextMarker(text.clone()), MarkerTiming::Instant(timestamp)).category(category);
+                        }
+
                         profile.add_marker(thread.handle, name, TextMarker(text), timing).category(category);
                     }
                      //println!("unhandled {}", s.name()) 
