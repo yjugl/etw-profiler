@@ -4,7 +4,7 @@ use context_switch::{OffCpuSampleGroup, ThreadContextSwitchData};
 use etw_reader::{GUID, open_trace, parser::{Parser, TryParse, Address}, print_property, schema::SchemaLocator, write_property};
 use lib_mappings::{LibMappingOpQueue, LibMappingOp, LibMappingAdd};
 use serde_json::{Value, json, to_writer};
-use fxprof_processed_profile::{Timestamp, MarkerDynamicField, MarkerFieldFormat, MarkerLocation, MarkerSchema, ReferenceTimestamp, MarkerSchemaField, MarkerTiming, ProfilerMarker, ThreadHandle, Profile, debugid, SamplingInterval, CategoryPairHandle, ProcessHandle, LibraryInfo, CounterHandle, FrameInfo, FrameFlags, LibraryHandle, CpuDelta, SymbolTable, Symbol};
+use fxprof_processed_profile::{debugid, CategoryColor, CategoryHandle, CategoryPairHandle, CounterHandle, CpuDelta, FrameFlags, FrameInfo, LibraryHandle, LibraryInfo, MarkerDynamicField, MarkerFieldFormat, MarkerLocation, MarkerSchema, MarkerSchemaField, MarkerTiming, ProcessHandle, Profile, ProfilerMarker, ReferenceTimestamp, SamplingInterval, Symbol, SymbolTable, ThreadHandle, Timestamp};
 use debugid::DebugId;
 use bitflags::bitflags;
 
@@ -222,6 +222,7 @@ fn main() {
     };
     let mut event_timestamps_are_qpc = false;
 
+    let mut categories = HashMap::<String, CategoryHandle>::new();
     let result = open_trace(Path::new(&trace_file), |e| {
         event_count += 1;
         let s = schema_locator.event_schema(e);
@@ -630,7 +631,7 @@ fn main() {
                         text += ", "
                     }
 
-                    profile.add_marker(thread.handle, "VirtualFree", TextMarker(text), timing)
+                    profile.add_marker(thread.handle, "VirtualFree", TextMarker(text), timing);
                 }
                 "MSNT_SystemTrace/PageFault/VirtualAlloc" => {
                     if !process_targets.contains(&e.EventHeader.ProcessId) {
@@ -665,9 +666,9 @@ fn main() {
                     }
                     counter.value += region_size as f64;
                     //println!("{}.{} VirtualAlloc({}) = {}",  e.EventHeader.ProcessId, thread_id, region_size, counter.value);
-                    
+
                     profile.add_counter_sample(counter.counter, timestamp, region_size as f64, 1);
-                    profile.add_marker(thread.handle, "VirtualAlloc", TextMarker(text), timing)
+                    profile.add_marker(thread.handle, "VirtualAlloc", TextMarker(text), timing);
                 }
                 "KernelTraceControl/ImageID/" => {
 
@@ -1058,7 +1059,7 @@ fn main() {
                         let timestamp = timestamp_converter.convert_raw(timestamp);
                         let thread_id = e.EventHeader.ThreadId;
                         let thread = match threads.entry(thread_id) {
-                            Entry::Occupied(e) => e.into_mut(), 
+                            Entry::Occupied(e) => e.into_mut(),
                             Entry::Vacant(_) => {
                                 dropped_sample_count += 1;
                                 // We don't know what process this will before so just drop it for now
@@ -1073,9 +1074,21 @@ fn main() {
                             text += ", "
                         }
 
-                        profile.add_marker(thread.handle, s.name(), TextMarker(text), MarkerTiming::Instant(timestamp))
-
-
+                        let timing = MarkerTiming::Instant(timestamp);
+                        let name = s.name();
+                        let (category, name) = match name.rsplit_once("/") {
+                            None => (CategoryHandle::OTHER, name),
+                            Some((category_name, event_name)) => {
+                                let category = categories.get(category_name).map(|category| *category);
+                                let category = category.unwrap_or_else(|| {
+                                    let category = profile.add_category(category_name, CategoryColor::Transparent);
+                                    categories.insert(category_name.to_string(), category);
+                                    category
+                                });
+                                (category, event_name)
+                            }
+                        };
+                        profile.add_marker(thread.handle, name, TextMarker(text), timing).category(category);
                     }
                      //println!("unhandled {}", s.name()) 
                     }
