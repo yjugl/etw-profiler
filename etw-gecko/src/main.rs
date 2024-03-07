@@ -1074,8 +1074,18 @@ fn main() {
                             text += ", "
                         }
 
-                        let timing = MarkerTiming::Instant(timestamp);
-                        let name = s.name();
+                        let (name, timing) = match s.name().rsplit_once("/win:") {
+                            None => (s.name(), MarkerTiming::Instant(timestamp)),
+                            Some((name, timing)) => {
+                                let timing = match timing {
+                                    "Start" => MarkerTiming::IntervalStart(timestamp),
+                                    "Stop" => MarkerTiming::IntervalEnd(timestamp),
+                                    _ => MarkerTiming::Instant(timestamp),
+                                };
+                                (name, timing)
+                            }
+                        };
+
                         let (category, name) = match name.rsplit_once("/") {
                             None => (CategoryHandle::OTHER, name),
                             Some((category_name, event_name)) => {
