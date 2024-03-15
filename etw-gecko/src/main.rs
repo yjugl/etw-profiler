@@ -631,7 +631,7 @@ fn main() {
                         text += ", "
                     }
 
-                    profile.add_marker(thread.handle, "VirtualFree", TextMarker(text), timing);
+                    profile.add_marker(thread.handle, CategoryHandle::OTHER, "VirtualFree", TextMarker(text), timing);
                 }
                 "MSNT_SystemTrace/PageFault/VirtualAlloc" => {
                     if !process_targets.contains(&e.EventHeader.ProcessId) {
@@ -668,7 +668,7 @@ fn main() {
                     //println!("{}.{} VirtualAlloc({}) = {}",  e.EventHeader.ProcessId, thread_id, region_size, counter.value);
 
                     profile.add_counter_sample(counter.counter, timestamp, region_size as f64, 1);
-                    profile.add_marker(thread.handle, "VirtualAlloc", TextMarker(text), timing);
+                    profile.add_marker(thread.handle, CategoryHandle::OTHER, "VirtualAlloc", TextMarker(text), timing);
                 }
                 "KernelTraceControl/ImageID/" => {
 
@@ -805,6 +805,7 @@ fn main() {
                         profile.add_thread(gpu, 1, profile_start_instant, false)
                     });
                     profile.add_marker(*gpu_thread,
+                        CategoryHandle::OTHER, 
                         "Vsync",
                         VSyncMarker{},
                         MarkerTiming::Instant(timestamp)
@@ -863,6 +864,7 @@ fn main() {
                     if let Some(main_thread) = process.main_thread_handle {
                         profile.add_marker(
                             main_thread,
+                            CategoryHandle::OTHER, 
                             "JitFunctionAdd",
                             JitFunctionAddMarker(method_name.to_owned()),
                             MarkerTiming::Instant(timestamp),
@@ -951,12 +953,12 @@ fn main() {
 
                         if marker_name == "UserTiming" {
                             let name: String = parser.try_parse("name").unwrap();
-                            profile.add_marker(thread.handle, "UserTiming", UserTimingMarker(name), timing);
+                            profile.add_marker(thread.handle, CategoryHandle::OTHER, "UserTiming", UserTimingMarker(name), timing);
                         } else if marker_name == "SimpleMarker" {
                             let marker_name: String = parser.try_parse("MarkerName").unwrap();
-                            profile.add_marker(thread.handle, &marker_name, TextMarker(text.clone()), timing);
+                            profile.add_marker(thread.handle, CategoryHandle::OTHER, &marker_name, TextMarker(text.clone()), timing);
                         } else {
-                            profile.add_marker(thread.handle, marker_name, TextMarker(text.clone()), timing);
+                            profile.add_marker(thread.handle, CategoryHandle::OTHER, marker_name, TextMarker(text.clone()), timing);
                         }
                     } else if let Some(marker_name) = s.name().strip_prefix("Google.Chrome/").and_then(|s| s.strip_suffix("/")) {
                         // a bitfield of keywords
@@ -1048,9 +1050,9 @@ fn main() {
                         };
                         let keyword = KeywordNames::from_bits(e.EventHeader.EventDescriptor.Keyword).unwrap();
                         if keyword == KeywordNames::blink_user_timing {
-                            profile.add_marker(thread.handle, "UserTiming", UserTimingMarker(marker_name.to_owned()), timing);
+                            profile.add_marker(thread.handle, CategoryHandle::OTHER, "UserTiming", UserTimingMarker(marker_name.to_owned()), timing);
                         } else {
-                            profile.add_marker(thread.handle, marker_name, TextMarker(text.clone()), timing);
+                            profile.add_marker(thread.handle, CategoryHandle::OTHER, marker_name, TextMarker(text.clone()), timing);
                         }
                     } else {
                         let mut parser = Parser::create(&s);
@@ -1109,10 +1111,10 @@ fn main() {
                             _ => None,
                         };
                         if let Some(name_extra) = name_extra {
-                            profile.add_marker(thread.handle, &(name.to_string() + name_extra), TextMarker(text.clone()), MarkerTiming::Instant(timestamp)).category(category);
+                            profile.add_marker(thread.handle, category, &(name.to_string() + name_extra), TextMarker(text.clone()), MarkerTiming::Instant(timestamp));
                         }
 
-                        profile.add_marker(thread.handle, name, TextMarker(text), timing).category(category);
+                        profile.add_marker(thread.handle, category, name, TextMarker(text), timing);
                     }
                      //println!("unhandled {}", s.name()) 
                     }
